@@ -1,0 +1,219 @@
+---
+title: "Guía 1"
+output: html_notebook
+---
+
+```{r}
+library(magrittr)
+library(dplyr)
+library(ggplot2)
+library(janitor)
+library(EnvStats)
+```
+
+## Ejercicio 1
+
+Supongamos que queremos averiguar cuál es la superficie de la Tierra cubierta por agua, $\theta$. Para eso, lanzamos al aire un globo terráqueo y al atraparlo, registramos si nuestro dedo índice de la mano derecha quedó marcando agua o tierra. De esta manera obtenemos una secuencia de muestras aleatorias de una variable Bernouilli($\theta$) independientes.
+
+a.  --
+b.  Usando la distribución posterior calculada, obtener la distribución "posterior predictive" para las siguiente 5 muestras aleatorias
+c.  
+
+```{r}
+set.seed(42)
+simulation <-data.frame(theta = rbeta(10000, 5, 12)) %>% 
+  mutate(y = rbinom(10000, size = 5, prob = theta))
+prop.table(table(simulation$y))
+
+```
+
+## Ejercicio 2
+
+Siguiente el procedimiento del ejercicio anterior y partiendo de una distribución uniforme, graficar la distribución posterior luego de observar A. Luego, usando esa distribución posterior como prior, calcular y graficar la distribición posterior luego de observar T. Continuar este proceso para ver cómo se actualiza secuencialmente la distribución posterior cuando sucesivamente obtenemos (después de las dos primeras muestras aleatorias) {A, A, A, T, A, T, A}.
+
+**Asumo que observe solo un exito: A**
+
+```{r}
+theta_grid <- seq(0,1,length=1000)
+db <- dbeta(theta_grid, 2, 1) # observé solo A
+db2 <- dbeta(theta_grid, 2, 2) # observé A y T 
+db3 <- dbeta(theta_grid, 7, 4) # observé {A, A, A, T, A, T, A}
+ggplot() + 
+  geom_line(aes(x,db), color='forestgreen') +
+  geom_line(aes(x,db2), color='orange') +
+  geom_line(aes(x,db3), color='blue')
+```
+
+## Ejercicio 3
+
+Repetir el ejercicio 2 pero partir de un prior triangular, con máximo en $\theta=0.5$. Para hacerlo, hacer una aproximación de grilla para calcular la posterior. Esto es:
+
+a.  Definir un vector de valores de $\theta$ en los cuales se quiere estimar la posterior.
+b.  Calcular el prior para cada valor $\theta$ en esa grilla.
+c.  Calcular la función de likelihood para valor del parámetro.
+d.  Calcular la posterior no normalizada multiplicando el prior por el likelihood.
+e.  Normalizar la posterior dividiendo por la suma de todos sus valores.
+
+```{r}
+# a. valores de theta en los cuales se quiere estimar la posterior
+grid_data <- data.frame(theta_grid = seq(from = 0, to = 1, length = 1000))
+
+# b. Calcular el prior para cada valor \theta en esa grilla.
+grid_data <- grid_data %>% 
+  mutate(prior = dtri(theta_grid, min=0, max=1, mode=1/2))
+
+# c. calular la función de likelihood para valor del parámetro.
+
+grid_data <- grid_data %>% 
+  # observé solo A
+  mutate(likelihood_1 = dbinom(1, 1,theta_grid),
+  # observé A, T
+          likelihood_2 = dbinom(1, 2, theta_grid), 
+  # observé {A, T} U {A, A, A, T, A, T, A}; #A = 6, #T = 3 
+        likelihood_3 = dbinom(6, 9, theta_grid))
+
+# d. calcular la posterior no normalizada multiplicando prior por likelihood 
+
+grid_data <- grid_data %>% 
+ mutate(unnormalized_1 = likelihood_1 * prior, 
+        unnormalized_2 = likelihood_2 * prior,
+        unnormalized_3 = likelihood_3 * prior)
+
+# e. calcular la posterior dividiendo por la suma de todos sus valores
+
+grid_data <- grid_data %>% 
+ mutate(posterior_1 = prop.table(unnormalized_1), 
+        posterior_2 = prop.table(unnormalized_2),
+        posterior_3 = prop.table(unnormalized_3))
+
+# verifico que sumen 1
+grid_data %>% 
+  summarize(sum(posterior_1))
+
+
+grid_data %>% 
+  ggplot() +
+  geom_line(aes(x=theta_grid, y=prop.table(prior), color='prior')) +
+  geom_line(aes(x=theta_grid, y=posterior_1, color='posterior_1'))+
+  geom_line(aes(x=theta_grid, y=posterior_2, color='posterior_2'))+
+  geom_line(aes(x=theta_grid, y=posterior_3, color='posterior_3'))+
+  scale_color_manual(values=c(
+    'prior'='grey',
+    'posterior_1'='orange',
+    'posterior_2'='green',
+    'posterior_3'='red')) +
+  labs(color = 'distrubciones')
+  
+```
+
+```{r}
+x <- seq(0,1,length=1000)
+prior <- dtri(x, min = 0, max = 1, mode = 1/2)
+#
+likelihood_1 <- dbeta(x,2,1)
+posterior_1 <- prop.table(prior * likelihood_1)
+likelihood_2 <- dbeta(x,2,2)
+posterior_2 <- prop.table(prior * likelihood_2)
+l <- dbinom(1, 2, x)
+p <- prop.table(prior * l)
+likelihood_3 <- dbeta(x,7,4)
+posterior_3 <- prop.table(prior * likelihood_3)
+ggplot() +
+  #geom_line(aes(x,prior), color='darkgreen') +
+  geom_line(aes(x,posterior_1), color= 'orange') +
+  geom_line(aes(x,posterior_2), color= 'green') +
+  geom_line(aes(x,p), color= 'red')
+```
+
+## Ejercicio 4
+
+Crear una función que genere $N$ datos del proceso aleatorio descripto en el ejercicio 1 tomando como parámetros $N$ y $\theta$. Crear otra función que calcule la distribución posterior partiendo de un prior uniforme, genere muestras de esta distribución y con esas muestras devuelva un intervalo de credibilidad del $50%$ de $\theta$. Con esta función, estimar el número mínimo de muestras aleatorias que se necesitan para estimar con un intervalo de credibilidad de ancho menor a $0.1$.
+
+
+```{r}
+generar_datos <- function(N, theta){
+  rbinom(N, 1, theta)
+}
+
+# aproximación de la posterior por grillas de tamaño 1000 
+posterior_dist <- function(datos, N=1000){
+  num_experimentos <- length(datos)
+  num_exitos <- sum(datos)
+  grid_data <- data.frame(theta_grid = seq(from=0,to=1,length=N)) %>%
+  mutate(prior = dbeta(theta_grid, 1,1)) %>%
+  mutate(likelihood = dbinom(num_exitos, size=num_experimentos, prob=theta_grid),
+         posterior = prop.table(likelihood * prior))
+  # devuelvo aproximación de la pdf de la posterior, para cada
+  # theta de la grilla tengo la P(Titon=theta|datos)
+  posterior_dist <- data.frame(theta = grid_data$theta_grid, posterior_proba = grid_data$posterior)
+}
+
+# Asumo que theta verdadero es 0.3
+datos <- generar_datos(10, 0.3) 
+posterior <- posterior_dist(datos)
+
+# sampleo de la distribución posterior
+posterior_samples <- sample_n(posterior, size=1000, 
+                              weight = posterior$posterior_proba, replace = T)
+
+posterior_samples %>% 
+  ggplot(aes(x=theta)) +
+  geom_density()
+
+```
+
+```{r}
+intervalo_credibilidad <- quantile(posterior_samples$theta, c(0.25, 0.75))
+intervalo_credibilidad <- unname(intervalo_credibilidad)
+c(intervalo_credibilidad[1], intervalo_credibilidad[2])
+```
+
+```{r}
+longitud <- intervalo_credibilidad[2]-intervalo_credibilidad[1]
+longitud
+```
+
+
+## Ejercicio 5
+
+Supongamos que estamos de espaldas a una mesa de pool separada en dos por una línea vertical. Juan y Alicia participan del siguiente juego. Tiran una pelota a la mesa que cae en un punto cualquiera, al azar. Si cae a la izquierda de la línea, Alicia gana 1 punto. Si cae a la derecha, Juan gana 1 punto. Gana el primero que llega a 6 puntos. Después de tirar 8 bolas, Alicia suma 5 puntos y Juan 3.
+
+a.  Calcular la distribución posterior para la probabilidad $\theta$ de que Juan gane el juego.
+
+La distribución posterior es una $\beta (4,6)$
+
+b.  Tomar muestras de la posterior y con ellas obtener la esperanza de $\theta$. Comparar con el resultado visto en clase.
+
+```{r}
+# Tomo N muestras de una distribución Beta(4,6) y caluclo el promedio para estimar la esperanza
+mean(rbeta(10000,4, 6))
+```
+
+c.  Simular este juego para obtener la probabilidad esperada de que gana Juan el juego, entendida como la cantidad de veces que gana Juan el juego condicional a que va perdiendo 5 a 3.
+
+```{r}
+# generamos la simulacion
+set.seed(42)
+simulacion_pool <- data.frame(theta = rbeta(10000, 1, 1)) %>%  # parto del prior uniforme
+  mutate(y = rbinom(10000, size = 8, prob = theta)) # para cada theta, se juega 8 veces luego y es el número
+
+simulacion_pool %>% 
+  ggplot(aes(x=theta, y=y)) +
+  geom_point(aes(color = (y == 3)), size = 1)
+
+```
+
+```{r}
+
+simulacion_pool_posterior <- simulacion_pool %>% 
+  filter(y==3)
+
+simulacion_pool_posterior %>% 
+  ggplot(aes(x=theta)) +
+  geom_density()
+
+simulacion_pool_posterior %>% 
+  summarise(mean(theta))
+```
+
+
