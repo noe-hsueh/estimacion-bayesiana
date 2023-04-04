@@ -1,0 +1,240 @@
+---
+title: "Guía 2: Famililas conjugadas"
+output: html_notebook
+---
+```{r}
+
+library(dplyr)
+library(ggplot2)
+```
+```{r}
+plot_poisson_likelihood <- 
+  function(y, lambda_upper_bound = 10){
+    
+    lambda = seq(0, lambda_upper_bound, by = 0.1)
+    
+    ht = exp(-1*length(y)*lambda)*lambda^(sum(y))/prod(factorial(y))
+    
+    data <- data.frame(lambda = lambda,
+                       f_lambda = 
+                         rep(ht, length(lambda)))
+    ggplot(data, aes(x = lambda, 
+                     y = f_lambda)) +
+      geom_line() +
+      labs(x = expression(lambda),
+           y = expression(paste("L(",lambda,"|(Y=", y, "))")))
+    
+  }
+plot_poisson_likelihood(c(3,7,9))
+```
+
+
+## Ejercicio 1
+
+```{r}
+datos_a <- c(3,7,19)
+datos_b <- c(12,12,12,0)
+datos_c <- c(12)
+datos_d <- c(16,10,17,11,11)
+```
+
+```{r}
+lambda_grid <- seq(from=0, to=20, length=100)
+
+likelihood <- function(grilla, datos){
+  likelihood <- c()
+  for (lambda in grilla){
+    likelihood_i <- exp(-1*length(datos)*lambda) * lambda^(sum(datos))
+    likelihood <- c(likelihood, likelihood_i)
+  }
+  return(likelihood)
+} 
+
+likelihood_a <- likelihood(lambda_grid, datos_a)
+plot(lambda_grid, likelihood_a)
+likelihood_b <- likelihood(lambda_grid, datos_b)
+plot(lambda_grid, likelihood_b)
+likelihood_c <- likelihood(lambda_grid, datos_c)
+plot(lambda_grid, likelihood_c)
+likelihood_d <- likelihood(lambda_grid, datos_d)
+plot(lambda_grid, likelihood_d)
+```
+## Ejercicio 2
+```{r}
+grid_data_a <- data.frame(lambda_grid = seq(from=0, to=20, length=1000)) %>% 
+  mutate(prior = dgamma(lambda_grid, shape=24, rate=2), 
+         prior = prior/sum(prior*(20/1000)),
+         likelihood = likelihood(lambda_grid, c(3,7,19)),
+         posterior = (prior * likelihood),
+         posterior = posterior/sum(posterior*(20/1000)))
+
+grid_data_a %>% 
+  ggplot() +
+  geom_line(aes(x=lambda_grid, y=posterior), color='green') +
+  geom_line(aes(x=lambda_grid, y=prior), color='orange')
+
+```
+
+```{r}
+grid_data_b <- data.frame(lambda_grid = seq(from=0, to=20, length=1000)) %>% 
+  mutate(prior = dgamma(lambda_grid, shape=24, rate=2), 
+         prior = prior/sum(prior*(20/1000)),
+         likelihood = likelihood(lambda_grid, datos_b),
+         posterior = (prior * likelihood),
+         posterior = posterior/sum(posterior*(20/1000)))
+
+grid_data_b %>% 
+  ggplot() +
+  geom_line(aes(x=lambda_grid, y=posterior), color='green') +
+  geom_line(aes(x=lambda_grid, y=prior), color='orange')
+
+```
+
+
+```{r}
+grid_data_c <- data.frame(lambda_grid = seq(from=0, to=20, length=1000)) %>% 
+  mutate(prior = dgamma(lambda_grid, shape=24, rate=2), 
+         prior = prior/sum(prior*(20/1000)),
+         likelihood = likelihood(lambda_grid, datos_c),
+         posterior = (prior * likelihood),
+         posterior = posterior/sum(posterior*(20/1000)))
+
+grid_data_c %>% 
+  ggplot() +
+  geom_line(aes(x=lambda_grid, y=posterior), color='green') +
+  geom_line(aes(x=lambda_grid, y=prior), color='orange')
+```
+
+```{r}
+grid_data_d <- data.frame(lambda_grid = seq(from=0, to=20, length=1000)) %>% 
+  mutate(prior = dgamma(lambda_grid, shape=24, rate=2), 
+         prior = prior/sum(prior*(20/1000)),
+         likelihood = likelihood(lambda_grid, datos_d),
+         posterior = (prior * likelihood),
+         posterior = posterior/sum(posterior*(20/1000)))
+
+grid_data_d %>% 
+  ggplot() +
+  geom_line(aes(x=lambda_grid, y=posterior), color='green') +
+  geom_line(aes(x=lambda_grid, y=prior), color='orange')
+```
+
+## Ejercicio 3
+```{r}
+grid_data_combined <- data.frame(lambda_grid = seq(from=0, to=20, length=1000)) %>% 
+  mutate(prior = dgamma(lambda_grid, shape=2, rate=2), 
+         prior = prior/sum(prior*(20/1000)),
+         likelihood_a = likelihood(lambda_grid, datos_a),
+         posterior_a = (prior * likelihood_a),
+         posterior_a = posterior_a/sum(posterior_a*(20/1000)),
+         # b
+         likelihood_b = likelihood(lambda_grid, datos_b),
+         posterior_b = (prior * likelihood_b),
+         posterior_b = posterior_b/sum(posterior_b*(20/1000)),
+         # c
+         likelihood_c = likelihood(lambda_grid, datos_c),
+         posterior_c = (prior * likelihood_c),
+         posterior_c = posterior_c/sum(posterior_c*(20/1000)),
+         # d
+         likelihood_d = likelihood(lambda_grid, datos_d),
+         posterior_d = (prior * likelihood_d),
+         posterior_d = posterior_d/sum(posterior_d*(20/1000)),
+         )
+
+grid_data_combined %>% 
+  ggplot() +
+  geom_line(aes(x=lambda_grid, y=prior, color='prior')) +
+  geom_line(aes(x=lambda_grid, y=posterior_a, color='posterior_a')) +
+  geom_line(aes(x=lambda_grid, y=posterior_b, color='posterior_b')) +
+  geom_line(aes(x=lambda_grid, y=posterior_c, color='posterior_c')) +
+  geom_line(aes(x=lambda_grid, y=posterior_d, color='posterior_d')) +
+  scale_color_manual(values=c(
+    'prior'='grey',
+    'posterior_a'='orange',
+    'posterior_b'='green',
+    'posterior_c'='red',
+    'posterior_d'='blue')) +
+  labs(color='distribuciones')
+  
+```
+
+
+## Ejercicio 4
+a. Cantidad de intentos hasta el primer exito. 
+b. 
+
+
+## Ejercicio 5
+
+a. y c.
+```{r}
+datos_goles <- c(3,7,4)
+grid_data_goles <- data.frame(lambda_grid = seq(from=0, to=20, length=1000)) %>% 
+  mutate(prior = dgamma(lambda_grid, shape=1, rate=0.25), 
+         prior = prior/sum(prior*(20/1000)),
+         likelihood = likelihood(lambda_grid, datos_goles),
+         posterior = (prior * likelihood),
+         posterior = posterior/sum(posterior*(20/1000)))
+
+grid_data_goles %>% 
+  ggplot() +
+  geom_line(aes(x=lambda_grid, y=prior, color='prior')) +
+  geom_line(aes(x=lambda_grid, y=posterior, color='posterior')) +
+  scale_color_manual(values=c(
+    'prior'='grey',
+    'posterior'='orange')) +
+  labs(color='distribuciones')
+  
+```
+
+
+b. Porque hay muchos minutos y baja probabilidad de hacer un gol en cada minuto, $N$ es grande y $p$ es chico, luego puede interpretarse como el limite de una binomial.  
+
+
+
+
+d. 
+```{r}
+library(fivethirtyeight)
+library(dplyr)
+
+data("wwc_2019_matches")
+d <- wwc_2019_matches %>% 
+  mutate(total = score1 + score2) %>% 
+  select(total)
+
+grid_data_wwc_2019_matches <- data.frame(lambda_grid = seq(from=0, to=20, length=1000)) %>% 
+  mutate(prior = dgamma(lambda_grid, shape=1, rate=0.25), 
+         prior = prior/sum(prior*(20/1000)),
+         likelihood = likelihood(lambda_grid, d$total),
+         posterior = (prior * likelihood),
+         posterior = posterior/sum(posterior*(20/1000)))
+
+grid_data_wwc_2019_matches %>% 
+  ggplot() +
+  geom_line(aes(x=lambda_grid, y=prior, color='prior')) +
+  geom_line(aes(x=lambda_grid, y=posterior, color='posterior')) +
+  scale_color_manual(values=c(
+    'prior'='grey',
+    'posterior'='orange')) +
+  labs(color='distribuciones')
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
