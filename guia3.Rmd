@@ -1,0 +1,105 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+```{r}
+library(dplyr)
+library(ggplot2)
+```
+
+## Ejercicio 1
+Simular 10000 datos de una distribución Beta(3,7). Graficar un histograma de los datos y la distribución teórica superpuesta. Dar tres medidas de resumen de la distribución usando los datos simulados.
+
+
+```{r}
+N <- 10000
+simulacion <- data.frame(beta = rbeta(N, 3, 7), 
+                         gamma = rgamma(N, 4, 2), 
+                         theta = rnorm(N, 4, 1)) 
+simulacion <- simulacion %>% 
+  mutate(seq_beta = seq(from= min(beta), to=max(beta), length = N),
+         real_beta_density = dbeta(seq_beta, 3, 7),
+         seq_gamma = seq(from=min(gamma), to=max(gamma), length = N), 
+         real_gamma_density = dgamma(seq_gamma, 4 , 2),
+         seq_theta = seq(from=min(theta), to=max(theta), length = N), 
+         real_normal_density = dnorm(seq_theta, 4 , 1),
+         )
+
+simulacion %>% 
+  ggplot()+
+  geom_histogram(aes(x=beta, y=..density..), fill = "blue", alpha = 0.5) +
+  geom_line(aes(x = seq_beta, y=real_beta_density))
+
+simulacion %>% 
+  ggplot()+
+  geom_histogram(aes(x=gamma, y=..density..), fill = "green", alpha = 0.5) +
+  geom_line(aes(x = seq_gamma, y=real_gamma_density))
+
+simulacion %>% 
+  ggplot()+
+  geom_histogram(aes(x=theta, y=..density..), fill = "red", alpha = 0.5) +
+  geom_line(aes(x = seq_theta, y=real_normal_density))
+ 
+```
+```{r}
+summary(simulacion$beta)
+summary(simulacion$gamma)
+summary(simulacion$theta)
+```
+
+
+## Ejercicio 3
+
+Supongamos que tomaron datos $y$ y con un modelo bayesiano llegaron a que la distribución posterior para la probabilidad de que respondan un mail dentro de las 24 horas $\theta$, , es Beta(2,5). Les llega un nuevo mail. ¿Cuál es la probabilidad de que lo respondan en menos de 24 horas? Es decir, se pide $P(\tidle{y}=1 | y)$, la posterior predictive. Resolverlo de dos formas:
+
+```{r}
+N <- 10000
+simulacion <- data.frame(theta = rbeta(N, 2, 5)) %>% 
+  mutate(y = rbinom(N, 1, theta)) 
+
+
+simulacion %>% 
+  group_by(y) %>% 
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n))
+```
+
+## Ejercicio 4
+```{r}
+N <- 10000
+simulacion <- data.frame(theta_L = rbeta(N, 3, 7),
+                         theta_S = rbeta(N, 4, 8)) %>% 
+  mutate(delta = theta_L - theta_S, 
+         positivo = delta > 0) 
+
+#simulacion %>% 
+#  summarise(num_true = sum(positivo == TRUE), num_false = sum( positivo== FALSE))
+simulacion %>% 
+  group_by(positivo) %>% 
+  summarise(n = n()) %>%
+  mutate(freq = n / sum(n))
+```
+Los mails que reciben los lunes no los responden más rápido que los que reciben los sábados.
+
+## Ejercicio 5
+idea:
+  tengo vector de infectados 
+  y vector de especies
+creo un vector de 10000
+n = 10000
+  if rand(1) < 0.18 
+    inf[i] = 1
+      Si esta infectado, debo determinar la especie 
+      especie[i] = sample( c("A", "B", "C"), 1, prob= c(...) )
+  else 
+    inf[i] = 0
+      Si no esta infectado, debo determinar la especie 
+      especie[i] = sample( c("A", "B", "C"), 1, prob= c(...) )
+  end
+```{r}
+N <- 10000
+simulacion_arboles <- data.frame(infectado = rbinom(N, 2, 0.18))
+```
+
+
