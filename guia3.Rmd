@@ -1,11 +1,12 @@
 ---
-title: "R Notebook"
+title: "Guía 3: Simulaciones y muestreo de la posterior"
 output: html_notebook
 ---
 
 ```{r}
 library(dplyr)
 library(ggplot2)
+library(gridExtra)
 ```
 
 ## Ejercicio 1
@@ -51,7 +52,7 @@ summary(simulacion$theta)
 
 ## Ejercicio 3
 
-Supongamos que tomaron datos $y$ y con un modelo bayesiano llegaron a que la distribución posterior para la probabilidad de que respondan un mail dentro de las 24 horas $\theta$, , es Beta(2,5). Les llega un nuevo mail. ¿Cuál es la probabilidad de que lo respondan en menos de 24 horas? Es decir, se pide $P(\tidle{y}=1 | y)$, la posterior predictive. Resolverlo de dos formas:
+Supongamos que tomaron datos $y$ y con un modelo bayesiano llegaron a que la distribución posterior para la probabilidad de que respondan un mail dentro de las 24 horas $\theta$, , es Beta(2,5). Les llega un nuevo mail. ¿Cuál es la probabilidad de que lo respondan en menos de 24 horas? Es decir, se pide $P(\tilde{y}=1 | y)$, la posterior predictive. Resolverlo de dos formas:
 
 ```{r}
 N <- 10000
@@ -66,6 +67,14 @@ simulacion %>%
 ```
 
 ## Ejercicio 4
+Supongamos que quieren saber si los mails que reciben los lunes los responden más rápido que los que reciben los sábados. Con datos que recolectan de su propia experiencia llegan a que la distribución posterior para $\theta_L$ es Beta(3,7) (correspondiente a mails que llegan los lunes) y $\theta_S$ es Beta(4,8) para los que llegan los sábados. Para responder la pregunta simulando, sigan estos pasos:
+
+a. Simular 10000 valores de $\theta_L$ y $\theta_S$. 
+
+b. Calcular, para cada para de valores $\theta_L(i)$ y $\theta_S(i)$, la diferencia  $\delta_i = \theta_L(i)-\theta_S(i)$.
+
+c. Usar las muestras aleatorias $\delta_i$ para responder la preguta. Ej: preguntarse por la probabilidad de que esa diferencia sea positiva. 
+
 ```{r}
 N <- 10000
 simulacion <- data.frame(theta_L = rbeta(N, 3, 7),
@@ -83,23 +92,199 @@ simulacion %>%
 Los mails que reciben los lunes no los responden más rápido que los que reciben los sábados.
 
 ## Ejercicio 5
-idea:
-  tengo vector de infectados 
-  y vector de especies
-creo un vector de 10000
-n = 10000
-  if rand(1) < 0.18 
-    inf[i] = 1
-      Si esta infectado, debo determinar la especie 
-      especie[i] = sample( c("A", "B", "C"), 1, prob= c(...) )
-  else 
-    inf[i] = 0
-      Si no esta infectado, debo determinar la especie 
-      especie[i] = sample( c("A", "B", "C"), 1, prob= c(...) )
-  end
+
+Un jardín botánico tiene tres especies de árboles, A, B y C. El 18% del total de los árboles está infectado con un plaga. Entre los infectados, 15% son A, 80% son B y 5% son C. Entre los no infectados 20% son A, 10% son B y 70% son C. Para monitorear el avance de la plaga, un empleado se acerca a un árbol cualquiera para examinarlo. Para resolver este ejercicio, simular datos de 10000 árboles.
+
 ```{r}
 N <- 10000
-simulacion_arboles <- data.frame(infectado = rbinom(N, 2, 0.18))
+especies <- c('A', 'B', 'C')
+simulacion_arboles <- data.frame(infectado = rbinom(N, 1, 0.18))
+simulacion_arboles <- simulacion_arboles %>%
+  mutate(especie = case_when(
+    infectado == 1 ~ sample(especies, n(), prob = c(0.15, 0.80, 0.05), replace=T),
+    infectado == 0 ~ sample(especies, n(), prob = c(0.20, 0.10, 0.70), replace= T)
+  ))
 ```
 
+a. Cuál es la probabilidad de que el árbol esté infectado (prior)?
+```{r}
+simulacion_arboles %>% 
+  group_by(infectado) %>% 
+  summarise(n=n()) %>% 
+  mutate(freq = n / sum(n))
+```
+
+b. Si resulta que el árbol seleccionado es de la especie B. ¿Qué probabilidad tenía de haber seleccionado uno de esa especie? 
+
+```{r}
+simulacion_arboles %>% 
+  group_by(especie) %>% 
+  summarise(n=n()) %>% 
+  mutate(freq = n / sum(n))
+```
+
+c. Cuál es la probabilidad posterior de que el árbol seleccionado, de la especie B, esté infectado?
+
+```{r}
+simulacion_arboles %>% 
+  filter(especie=='B') %>% 
+  group_by(infectado) %>% 
+  summarise(n=n()) %>% 
+  mutate(freq = n / sum(n))
+```
+
+d. Comparar la probabilidad a priori de que el árbol esté infectado con la probabilidad posterior (luego de saber que el árbol seleccionado es de la especie B)?
+
+e. Comparar los resultados de las simulaciones con el resultado exacto usando la regla de Bayes.
+
+
+## Ejercicio 6 
+Implementar el algoritmo de Metropolis-Hastings para conseguir muestras de una distribución $\mathcal{N}(\mu=0.4, \sigma=0.6)$. Construir una función que tome como argumento el largo de la cadena (número de muestras), el valor inicial y algún parámetro necesario de la función de propuesta.
+
+
+```{r}
+one_mh_iteration_ej6 <- function(current, sigma, datos=NA){
+    proposed <- rnorm(1, current, sigma)
+    proposal_plaus <- dnorm(proposed, 4, 0.6) 
+    current_plaus <- dnorm(current, 4, 0.6) 
+    acceptance_prob <- min(1, proposal_plaus/current_plaus)
+    return(data.frame(current, proposed, acceptance_prob))
+}
+
+metropolis_hasting <- function(N, theta_0, sigma, one_mh_iteration, datos=NA){
+  theta <- rep(0, N)
+  theta[1] <- theta_0
+  for (i in 1:(N-1)) {
+    current_theta <- theta[i]
+    simulation <- one_mh_iteration(current_theta, sigma, datos)
+    proposed_theta <- simulation$proposed
+    acceptance_prob <- simulation$acceptance_prob
+    next_theta <- sample(c(proposed_theta, current_theta),
+                         size=1,
+                         prob=c(acceptance_prob, 1-acceptance_prob))
+    theta[i+1] <- next_theta
+  }
+  return(data.frame(iteration = c(1:N), theta))
+}
+
+mh_simulation_1 <- metropolis_hasting(10000, 0, 2, one_mh_iteration_ej6)
+```
+
+```{r}
+mh_simulation_1 %>% 
+  ggplot(aes(x=iteration, y = theta)) +
+  geom_line()
+```
+
+```{r}
+mh_simulation_1 %>% 
+  ggplot(aes(x=theta)) +
+  geom_histogram(aes(y=..density..), bins= 20) +
+  stat_function(fun=dnorm, args = list(4, 0.6), color="blue")
+```
+
+## Ejercicio 7
+Ientificar una pregunta que se pueda responder con un modelo Beta-Binomial para la probabilidad 
+$\theta$ de que ocurra algo. Por ejemplo: proporción de colectivos que vienen llenos cuando vienen a Exactas, etc.
+
+a. Proponer un prior para $\theta$. 
+
+Tomo prior uniforme. $\pi\sim\beta(1,1)$
+
+b. Juntar datos (de verdad o inventados).
+
+```{r}
+datos_bus <- rbinom(100, 1, 0.2)
+n <- length(datos_bus)
+y <- sum(datos_bus)
+```
+
+c. Simular 2000 valores de $\theta$ obtenidos con el algoritmo de Metropolis-Hastings.
+d. Graficar la cadena resultante (secuencia de muestras). ¿Están satisfechos con el resultado? ¿A qué hay que estar atentos para aceptar las muestras?
+
+```{r}
+# asumo que la proporción real de colectivos que vienen llenos es theta=0.2
+# tomamos como prior una beta(1,1), uniforme(0,1)
+
+one_mh_iteration_ej7 <- function(current, sigma, datos){
+    proposed <- rbeta(1, 1, 1)
+    y <- sum(datos)
+    n <- length(datos)
+    proposal_plaus <- dbeta(proposed, 1, 1) * dbinom(y, n, proposed)
+    current_plaus <- dbeta(current, 1, 1) * dbinom(y, n, current)
+    acceptance_prob <- min(1, proposal_plaus/current_plaus)
+    return(data.frame(current, proposed, acceptance_prob))
+}
+mh_bus <- metropolis_hasting(N=2000, sigma=1, theta_0 = 0.5, one_mh_iteration = one_mh_iteration_ej7, datos=datos_bus)
+```
+
+```{r}
+mh_bus %>% 
+  ggplot(aes(x=iteration, y = theta)) +
+  geom_line()
+```
+
+La posterior tendrá forma $\pi|Y=y \sim \beta(y, n-y)$.
+
+```{r}
+mh_bus %>% 
+  ggplot(aes(x=theta)) +
+  geom_histogram(aes(y=..density..), bins= 20) +
+  stat_function(fun=dbeta, args = list(1+y, 1+n-y), color="orange") 
+```
+
+
+## Ejercicio 8
+
+Identificar una pregunta que se pueda responder con un modelo Normal para $\mu$, un valor medio de interés. Por ejemplo: la temperatura máxima promedio en Otoño en Buenos Aires, el tiempo medio de uso de celular diario, etc.
+
+a. Proponer un prior para $\mu$.
+
+Asumo que el valor medio de la temperatura máxima de Buenos Aires en otoño se distribuye según una Normal con $ \mu \sim \mathcal{N}(\mu=15, \sigma=1.5)$
+
+```{r}
+ggplot() +
+  xlim(8,25) +
+  stat_function(fun=dnorm, args = list(15, 1.5), color="red")
+```
+
+b. Juntar datos (de verdad o inventados).
+
+Simulo 100 datos. Para ello, asumo que en realidad el valor medio es $\mu\sim\mathcal{N}(18,1)$
+```{r}
+datos_temp <- rnorm(100, 18, 1)
+```
+
+c. Simular 2000 valores de $\mu$ obtenidos con el algoritmo de Metropolis-Hastings. Usar $\sigma$ fijo.
+
+```{r}
+one_mh_iteration_ej8 <- function(current, sigma, datos){
+    proposed <- rnorm(1, current, sigma)
+    # prior normal(15, 1.5) * likelihood(datos, mu, 1), asumo que conozco sigma de los datos
+    proposal_plaus <- dnorm(proposed, 15, 1.5) * prod(dnorm(datos, proposed, 1))
+    current_plaus <- dnorm(current, 15, 1.5) * prod(dnorm(datos, current, 1))
+    acceptance_prob <- min(1, proposal_plaus/current_plaus)
+    return(data.frame(current, proposed, acceptance_prob))
+}
+mh_temperatura <- metropolis_hasting(N=2000, theta_0=0.5, sigma=1, one_mh_iteration = one_mh_iteration_ej8, datos_temp) 
+```
+
+
+d. Graficar la cadena resultante (secuencia de muestras). ¿Están satisfechos con el resultado? ¿A qué hay que estar atentos para aceptar las muestras?
+
+
+```{r}
+mh_temperatura %>% 
+  ggplot(aes(x=iteration, y = theta)) +
+  geom_line()
+```
+
+```{r}
+mh_temperatura %>% 
+  ggplot(aes(x=theta)) +
+  geom_histogram(aes(y=..count../sum(..count..)), bins= 30) +
+  stat_function(fun=dnorm, args = list(18, 1), color="orange") +
+  xlim(15,20)
+  # stat_function(fun=dnorm, args = list(15, 1.5), color='grey') 
+```
 
