@@ -1,0 +1,117 @@
+---
+title: "Guía 5: Regresiones"
+output: html_notebook
+---
+
+```{r}
+library(brms)
+library(dplyr)
+library(ggplot2)
+library(palmerpenguins)
+```
+
+## Ejercicio 1 
+
+Usando el dataset penguins del paquete palmerpenguins, estudiar la relación entre el largo de las aletas de los pinguinos (`flipper_length`) y su peso (`body_mass_g`).
+
+
+a. Proponer un modelo en el que el peso tiene una distribución normal con parámetros $\mu$ y $\sigma$ , donde se basa en el largo de las aletas.
+
+```{r}
+mass_flipper <- ggplot(data = penguins, 
+                       aes(x = flipper_length_mm,
+                           y = body_mass_g)) +
+  geom_point(aes(color = species, 
+                 shape = species),
+             size = 3,
+             alpha = 0.8) +
+  scale_color_manual(values = c("darkorange","purple","cyan4")) +
+  labs(title = "Penguin size, Palmer Station LTER",
+       subtitle = "Flipper length and body mass for Adelie, Chinstrap and Gentoo Penguins",
+       x = "Flipper length (mm)",
+       y = "Body mass (g)",
+       color = "Penguin species",
+       shape = "Penguin species") +
+  theme(legend.position = c(0.2, 0.7),
+        plot.title.position = "plot",
+        plot.caption = element_text(hjust = 0, face= "italic"),
+        plot.caption.position = "plot")
+
+mass_flipper
+```
+
+Sea $Y_i$ peso del pinguino $i$ y $X_i$ el largo de la aleta correspondiente. 
+$$
+Y_i | \beta_0, \beta_1 \sim N(\mu_i, \sigma) \\
+\mu_i = \beta_0 + \beta_1 X_i
+
+$$
+
+b. Correr el modelo en STAN usando `brms` o `rstanarm`, eligiendo priors para los parámetros o usando los priors default.
+
+```{r}
+penguins <- penguins %>%
+  select('body_mass_g', 'flipper_length_mm')  %>%
+  filter(!is.na(body_mass_g))
+```
+
+Previamente centramos y eliminamos los NAs de los datos:
+```{r}
+penguins_centered <- penguins %>%
+  select('body_mass_g', 'flipper_length_mm')  %>%
+  filter(!is.na(body_mass_g)) %>%
+  mutate(flipper_length_mm = scale(flipper_length_mm, scale = F))
+penguins_centered
+```
+
+
+```{r}
+fit.1 <- 
+  brm(data = penguins_centered, 
+      family = gaussian, # rta gaussiana
+      body_mass_g ~ 1 + flipper_length_mm,         # modelo lineal
+      prior = c(prior(normal(4201, 1), class = Intercept),
+                prior(normal(0, 1), class =b ),
+                prior(exponential(1),  class = sigma)),
+      seed = 1)
+```
+```{r}
+plot(fit.1)
+```
+
+
+c. Diagnosticar las cadenas de muestras de las posteriores para cada parámetro usando el número efectivo de muestras ($n_{eff}$) y $\hat{R}$.
+
+
+```{r}
+neff_ratio(fit.1)
+```
+```{r}
+rhat(fit.1)
+```
+
+
+d. Encontrar la distribución posterior para el peso esperado de un pinguino que tiene una aleta de largo 200 mm. Graficarla y dar medidas resumen.
+
+```{r}
+mu_200mm <-  posterior_samples(fit.1) %>% 
+  select('b_Intercept', 'b_flipper_length_mm', 'sigma' ) %>% 
+  mutate(mu = b_Intercept + b_flipper_length_mm * (200-mean(penguins$flipper_length_mm))) 
+
+mu_200mm %>% 
+  ggplot(aes(x = mu)) +
+  geom_histogram()
+```
+
+e. Hacer 500 predicciones del peso de un pinguino con una aleta de largo 200 mm. Graficar la distribución de estos pesos predichos y comparar con el resultado del ítem anterior. ¿A qué se debe la diferencia?
+
+```{r}
+sample_n(mu_200mm, 500) %>% 
+  select('mu', 'sigma') %>% 
+  mutate(peso = rnorm(500, mu, sigma)) %>% 
+  ggplot(aes(x = peso)) +
+  geom_histogram(bins = 30)
+```
+
+
+f. Graficar 100 rectas correspondientes al peso esperado de pinguinos con una aleta de largo entre 150 mm y 250 mm. Hacer lo mismo para el peso predicho por el modelo.

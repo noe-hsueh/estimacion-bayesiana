@@ -1,0 +1,102 @@
+---
+title: 'Guía 4: Modelo lineal'
+output:
+  html_document:
+    df_print: paged
+---
+```{r}
+library(brms)
+library(tidyverse)
+```
+
+1. Para el siguiente modelo, simular observaciones $y_{obs}$ con el prior
+
+
+$$
+y \sim Normal(\mu, \sigma)
+$$
+
+```{r}
+N <- 1000
+mu <- rnorm(n=1, 0,10)
+sigma <- rexp(n= 1, .1)
+datos <- data.frame(
+  y = rnorm(1000, mu, sigma)
+)
+```
+
+2. Escribir el modelo del ejercicio 1 en brms.
+
+En este caso proponemos el siguiente modelo:
+
+$$
+Y_i|\beta_0, \sigma \sim Normal(\mu_i, \sigma) \quad\text{con }\mu_i=\beta_0 \\ 
+\beta_0  \sim Normal(0,1) \\
+\sigma  \sim Exp(1) \\
+$$
+
+```{r}
+fit.modelo1 <- 
+  brm(data = datos, 
+      family = gaussian, # rta gaussiana
+      y ~ 1,        # modelo 
+      prior = c(prior(normal(0, 1), class = Intercept),
+                prior(exponentialas(1),  class = sigma)),
+      seed = 1)
+```
+
+```{r}
+posterior_summary(fit.modelo1)[1:2, ] %>% round(digits = 2)
+```
+
+
+```{r}
+plot(fit.modelo1)
+```
+
+
+3. Traducir el siguiente modelo (en sintaxis de `brms`) matemáticamente.
+
+```{r, eval=FALSE}
+family = gaussian, 
+y ~ 1 + x,
+prior = c(prior(normal(0, 10), class = Intercept),
+          prior(normal(0, 10), class = b),
+          prior(exp(1),  class = sigma))
+```
+
+$$
+Y_i|\beta_0, \beta_1, \sigma \sim Normal(\mu_i, \sigma) \quad\text{con }\mu_i=\beta_0 + \beta_1 X \\ 
+\text{los prior son :} \\
+\beta_0  \sim Normal(0,10) \\
+\beta_1  \sim Normal(0,10) \\
+\sigma  \sim Exp(1) \\
+$$
+
+4. Supongamos que se mide la altura de un grupo de chicos durante tres años. Al cabo de los tres años, se quiere usar un modelo lineal para predecir la altura usando el año como predictora. Escribir la definición matemática para este modelo de regresión, usando los priors que quiera (pero esté preparado para defender la elección de priors.)
+
+Sea $Y_i$ la va que modela la altura de un niño $i$, esta variable se distribuye normalmente
+con parámetros $\beta_0, \beta_1, \sigma$. Asumimos que la predictora $X$ indica el año 1, 2 o 3.
+
+$$
+Y_i|\beta_0, \beta_1, \sigma \sim Normal(\mu_i, \sigma) \quad\text{con }\mu_i=\beta_0 + \beta_1 X \\ 
+\text{los priors son :} \\
+\beta_0  \sim Normal(100,20) \\
+\beta_1  \sim Exp(1) \\
+\sigma  \sim Exp(1) \\
+
+$$
+
+
+
+```{r}
+N <- 1000
+alfa <- rnorm(1, 100,27)
+beta <- rexp(1, rate= 3)
+sigma <- rexp(1)
+datos <- data.frame(
+  y = rnorm(N, alfa+beta*1, sigma)
+)
+hist(datos$y)
+```
+
